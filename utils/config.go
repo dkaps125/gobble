@@ -9,11 +9,28 @@ import (
 type Configuration struct {
 	Port       int
 	projectDir string
+	archiveDir string
 }
 
 var Config Configuration
 
 func (c *Configuration) SetProjectDir(directory string) {
+	c.setDirectory(&c.projectDir, directory)
+}
+
+func (c *Configuration) GetProjectDir() string {
+	return c.projectDir
+}
+
+func (c *Configuration) SetArchiveDir(directory string) {
+	c.setDirectory(&c.archiveDir, directory)
+}
+
+func (c *Configuration) GetArchiveDir() string {
+	return c.archiveDir
+}
+
+func (c *Configuration) setDirectory(prop *string, directory string) {
 	var err error
 
 	if DirectoryExists(directory) {
@@ -26,9 +43,5 @@ func (c *Configuration) SetProjectDir(directory string) {
 		panic("Could not set/create project directory!\n\n" + err.Error())
 	}
 
-	c.projectDir = directory
-}
-
-func (c *Configuration) GetProjectDir() string {
-	return c.projectDir
+	*prop = directory
 }

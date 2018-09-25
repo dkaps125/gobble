@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -17,6 +19,21 @@ type gobble struct {
 	r chi.Router
 }
 
+func handleInterrupt() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+
+	go func() {
+		for sig := range c {
+			fmt.Printf("%v\n", sig)
+			if sig == os.Interrupt {
+				fmt.Println("I interrupted this. I did not have to die.")
+				os.Exit(123)
+			}
+		}
+	}()
+}
+
 func main() {
 	var G gobble
 
@@ -25,6 +42,8 @@ func main() {
 
 	port := flag.Int("port", 3000, "Port on which the webserver will run")
 	utils.Config.Port = *port
+
+	handleInterrupt()
 
 	G.init()
 	G.start()
@@ -40,7 +59,7 @@ func (g *gobble) init() {
 
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	r.Route("/gitwebhook", routers.GitWebhooks)
+	r.Mount("/", routers.Routes())
 
 	g.r = r
 }

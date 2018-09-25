@@ -20,3 +20,15 @@ type ERRGITWEBHOOK struct {
 func (e ERRGITWEBHOOK) Error() string {
 	return fmt.Sprintf("%s: %s", GitActions[e.GitAction], e.Message)
 }
+
+// ===============================================================
+
+type ErrNoConfig struct{}
+
+var (
+	ERRNOCONFIG = ErrNoConfig{}
+)
+
+func (e ErrNoConfig) Error() string {
+	return "No config file found for this repository"
+}
