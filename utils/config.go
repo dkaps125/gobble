@@ -10,6 +10,8 @@ type Configuration struct {
 	Port       int
 	projectDir string
 	archiveDir string
+	WorkingDir string
+	Timeout    int
 }
 
 var Config Configuration

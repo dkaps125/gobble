@@ -43,6 +43,14 @@ func main() {
 	port := flag.Int("port", 3000, "Port on which the webserver will run")
 	utils.Config.Port = *port
 
+	archiveDir := flag.String("archiveDir", "archives", "Directory in which tarred projects will be stored")
+	utils.Config.SetArchiveDir(*archiveDir)
+
+	timeout := flag.Int("timeout", 30, "Timeout for build a test tasks")
+	utils.Config.Timeout = *timeout
+
+	utils.Config.WorkingDir, _ = os.Getwd()
+
 	handleInterrupt()
 
 	G.init()

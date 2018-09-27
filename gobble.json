@@ -1,4 +1,8 @@
 {
   "name": "gobble",
-  "run": "go run gobble.go"
+
+  "deploy": {
+      "type": "local",
+      "run": "go run gobble.go"
+  }
 }
