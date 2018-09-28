@@ -2,8 +2,8 @@ package deploy
 
 import (
 	"context"
-	"fmt"
 	"gobble/utils"
+	"log"
 )
 
 type Deploy struct {
@@ -20,7 +20,13 @@ var deployments = make(map[string]*Deploy)
 func (d *Deploy) Deploy(name string) error {
 	d.name = name
 
-	fmt.Printf("Attempting deploy of %s\n%v\n", name, d)
+	log.Printf("Checking for prior deployment of %s\n", name)
+	if dep, ok := deployments[name]; ok {
+		log.Printf("Found previous deployment of %s. Stopping...\n", name)
+		dep.runCancel()
+		delete(deployments, name)
+		log.Printf("Stopped prior deployment of %s\n", name)
+	}
 
 	if d.DeployType == "local" {
 		err := d.build()

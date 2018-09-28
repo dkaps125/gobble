@@ -50,6 +50,7 @@ func (r *Repo) UpdateOrClone() error {
 			}
 		}
 
+		//TODO: error checking
 		worktree.Pull(&git.PullOptions{
 			SingleBranch: true,
 		})

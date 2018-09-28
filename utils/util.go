@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -30,12 +31,21 @@ func ExecuteCommand(command string, timeout int) (context.CancelFunc, error) {
 	if timeout == 0 {
 		ctx, cancel = context.WithCancel(context.Background())
 		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 		CopyStderr(cmd)
 		CopyStdout(cmd)
 
 		if err := cmd.Start(); err != nil {
 			return nil, err
 		}
+
+		go func() {
+			<-ctx.Done()
+
+			if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+				panic(err)
+			}
+		}()
 
 		return cancel, nil
 	} else {
