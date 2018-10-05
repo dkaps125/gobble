@@ -12,6 +12,7 @@ type Configuration struct {
 	archiveDir string
 	WorkingDir string
 	Timeout    int
+	Secret     []byte
 }
 
 var Config Configuration

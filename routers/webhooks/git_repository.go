@@ -3,6 +3,7 @@ package webhooks
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path"
 
@@ -55,7 +56,7 @@ func (r *Repo) UpdateOrClone() error {
 			SingleBranch: true,
 		})
 	} else {
-		fmt.Printf("Cloning from %s\n", r.Clone_url)
+		log.Printf("Cloning from %s\n", r.Clone_url)
 		//TODO: use config to determine which url to clone from
 		_, err := git.PlainClone(r.directory, false, &git.CloneOptions{
 			URL: string(r.Ssh_url),

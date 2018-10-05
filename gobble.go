@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 
+	"gobble/deploy"
 	"gobble/routers"
 	"gobble/utils"
 )
@@ -25,10 +27,10 @@ func handleInterrupt() {
 
 	go func() {
 		for sig := range c {
-			fmt.Printf("%v\n", sig)
 			if sig == os.Interrupt {
-				fmt.Println("I interrupted this. I did not have to die.")
-				os.Exit(123)
+				log.Println("Shutting down...")
+				deploy.Shutdown()
+				os.Exit(0)
 			}
 		}
 	}()
@@ -38,16 +40,17 @@ func main() {
 	var G gobble
 
 	projectDir := flag.String("projectDir", "projects", "Directory in which projects will be stored")
-	utils.Config.SetProjectDir(*projectDir)
-
 	port := flag.Int("port", 3000, "Port on which the webserver will run")
-	utils.Config.Port = *port
-
 	archiveDir := flag.String("archiveDir", "archives", "Directory in which tarred projects will be stored")
-	utils.Config.SetArchiveDir(*archiveDir)
+	timeout := flag.Int("timeout", 30, "Timeout for build and test tasks")
+	secret := flag.String("secret", "", "Global secret for webhooks")
+	flag.Parse()
 
-	timeout := flag.Int("timeout", 30, "Timeout for build a test tasks")
+	utils.Config.SetProjectDir(*projectDir)
+	utils.Config.Port = *port
+	utils.Config.SetArchiveDir(*archiveDir)
 	utils.Config.Timeout = *timeout
+	utils.Config.Secret = []byte(*secret)
 
 	utils.Config.WorkingDir, _ = os.Getwd()
 
@@ -74,7 +77,7 @@ func (g *gobble) init() {
 
 func (g *gobble) start() {
 	if g.r == nil {
-		panic("Instance not correctly initialized!")
+		log.Panicln("Instance not correctly initialized!")
 	}
 
 	port := fmt.Sprintf(":%d", utils.Config.Port)

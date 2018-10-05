@@ -13,6 +13,7 @@ type Deploy struct {
 	Run        string `json:"run"`
 	runCancel  context.CancelFunc
 	name       string
+	killed     chan (bool)
 }
 
 var deployments = make(map[string]*Deploy)
@@ -20,10 +21,16 @@ var deployments = make(map[string]*Deploy)
 func (d *Deploy) Deploy(name string) error {
 	d.name = name
 
-	log.Printf("Checking for prior deployment of %s\n", name)
+	log.Printf("Checking for prior deployment of '%s'\n", name)
 	if dep, ok := deployments[name]; ok {
 		log.Printf("Found previous deployment of %s. Stopping...\n", name)
 		dep.runCancel()
+		died := <-dep.killed
+
+		if !died {
+			return utils.ERRKILLPROC
+		}
+
 		delete(deployments, name)
 		log.Printf("Stopped prior deployment of %s\n", name)
 	}
@@ -52,7 +59,7 @@ func (d *Deploy) Deploy(name string) error {
 
 func (d *Deploy) build() error {
 	if d.Build != "" {
-		_, err := utils.ExecuteCommand(d.Build, utils.Config.Timeout)
+		_, _, err := ExecuteCommand(d.Build, utils.Config.Timeout)
 		return err
 	}
 
@@ -61,7 +68,7 @@ func (d *Deploy) build() error {
 
 func (d *Deploy) test() error {
 	if d.Test != "" {
-		_, err := utils.ExecuteCommand(d.Test, utils.Config.Timeout)
+		_, _, err := ExecuteCommand(d.Test, utils.Config.Timeout)
 		return err
 	}
 
@@ -70,10 +77,12 @@ func (d *Deploy) test() error {
 
 func (d *Deploy) run() error {
 	if d.Run != "" {
-		cancel, err := utils.ExecuteCommand(d.Run, 0)
+		cancel, killed, err := ExecuteCommand(d.Run, 0)
 		d.runCancel = cancel
+		d.killed = killed
 
 		if err == nil {
+			log.Printf("Launched new version of %s\n", d.name)
 			deployments[d.name] = d
 		}
 
@@ -85,6 +94,8 @@ func (d *Deploy) run() error {
 
 func Shutdown() {
 	for _, v := range deployments {
+		log.Printf("Shutting down %s\n", v.name)
 		v.runCancel()
+		<-v.killed
 	}
 }

@@ -1,17 +1,23 @@
 package webhooks
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"gobble/utils"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/go-chi/chi"
 )
 
 type GitWebhook struct {
 	Repository Repo `json:"repository"`
+	secret     []byte
 }
 
 func (w *GitWebhook) Configure() {
@@ -34,25 +40,77 @@ func postWebhook(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 
-	utils.HTTPErrorCheck(err, w, 500)
+	if utils.HTTPErrorCheck(err, w, 500) {
+		return
+	}
 
 	var webhook GitWebhook
+	macStr := strings.Split(r.Header.Get("X-Hub-Signature"), "=")[1]
+
+	mac, err := hex.DecodeString(macStr)
+	if utils.HTTPErrorCheck(err, w, 500) {
+		return
+	}
+
+	auth, err := webhook.checkSecret(body, mac)
+
+	if !auth || err != nil {
+		log.Println(err)
+		http.Error(w, "Repository authentication failed", 500)
+		return
+	}
+
 	err = json.Unmarshal(body, &webhook)
 
-	utils.HTTPErrorCheck(err, w, 500)
+	if utils.HTTPErrorCheck(err, w, 500) {
+		return
+	}
 
 	webhook.Configure()
 	err = webhook.Repository.UpdateOrClone()
 
-	utils.HTTPErrorCheck(err, w, 500)
+	if utils.HTTPErrorCheck(err, w, 500) {
+		return
+	}
 
 	err = webhook.Repository.ImportConfig()
 
 	if err == nil {
 		err = webhook.Repository.Deploy()
 
-		utils.HTTPErrorCheck(err, w, 500)
+		if utils.HTTPErrorCheck(err, w, 500) {
+			return
+		}
 	}
 
 	w.WriteHeader(200)
+}
+
+func (w *GitWebhook) checkSecret(requestBody, messageMac []byte) (bool, error) {
+	if len(messageMac) != 0 {
+		secret := w.secret
+
+		if len(secret) == 0 {
+			secret = utils.Config.Secret
+
+			if len(secret) == 0 {
+				return false, utils.ERRNOCONFIG
+			}
+		}
+
+		mac := hmac.New(sha1.New, secret)
+		mac.Write(requestBody)
+		expectedMac := mac.Sum(nil)
+		return hmac.Equal(messageMac, expectedMac), nil
+	}
+
+	if len(utils.Config.Secret) > 0 {
+		return false, utils.ERRGITWEBHOOK{
+			GitAction: utils.GITHOOK,
+			Message:   "No signature provided",
+		}
+	} else {
+		// this indicates that no secret is required, and none was provided
+		return true, nil
+	}
 }
