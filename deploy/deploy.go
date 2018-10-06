@@ -12,14 +12,14 @@ type Deploy struct {
 	Test       string `json:"test"`
 	Run        string `json:"run"`
 	runCancel  context.CancelFunc
-	name       string
+	Name       string
 	killed     chan (bool)
 }
 
 var deployments = make(map[string]*Deploy)
 
 func (d *Deploy) Deploy(name string) error {
-	d.name = name
+	d.Name = name
 
 	log.Printf("Checking for prior deployment of '%s'\n", name)
 	if dep, ok := deployments[name]; ok {
@@ -50,8 +50,9 @@ func (d *Deploy) Deploy(name string) error {
 		if err != nil {
 			return err
 		}
-	} else if d.DeployType == "container" {
-		//TODO: deploy with docker container
+	} else if d.DeployType == "docker" {
+		var container Container
+		container.DeployContainer(*d)
 	}
 
 	return nil
@@ -82,8 +83,8 @@ func (d *Deploy) run() error {
 		d.killed = killed
 
 		if err == nil {
-			log.Printf("Launched new version of %s\n", d.name)
-			deployments[d.name] = d
+			log.Printf("Launched new version of %s\n", d.Name)
+			deployments[d.Name] = d
 		}
 
 		return err
@@ -94,7 +95,7 @@ func (d *Deploy) run() error {
 
 func Shutdown() {
 	for _, v := range deployments {
-		log.Printf("Shutting down %s\n", v.name)
+		log.Printf("Shutting down %s\n", v.Name)
 		v.runCancel()
 		<-v.killed
 	}

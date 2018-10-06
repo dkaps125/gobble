@@ -73,6 +73,8 @@ func (g *gobble) init() {
 	r.Mount("/", routers.Routes())
 
 	g.r = r
+
+	deploy.InitDocker()
 }
 
 func (g *gobble) start() {

@@ -70,3 +70,27 @@ var (
 		DeployFailure: errKillProc,
 	}
 )
+
+// ===============================================================
+
+const (
+	errInvalidState = iota
+)
+
+var dockerMessages = map[int]string{
+	errInvalidState: "Container was in an invalid state for called operation",
+}
+
+type dockerError struct {
+	ErrorType int
+}
+
+func (e dockerError) Error() string {
+	return dockerMessages[e.ErrorType]
+}
+
+var (
+	ERRINVALIDSTATE = dockerError{
+		ErrorType: errInvalidState,
+	}
+)

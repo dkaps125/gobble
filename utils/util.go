@@ -27,21 +27,23 @@ func HTTPErrorCheck(err error, w http.ResponseWriter, errorCode int) bool {
 	return false
 }
 
-func Tar(src string) error {
+func Tar(src string) (string, error) {
 	if !DirectoryExists(src) {
-		return ERRFILENOTFOUND
+		return "", ERRFILENOTFOUND
 	}
 
-	dir, err := os.Open(path.Join(Config.GetArchiveDir(), src) + ".tar")
+	archiveName := path.Join(Config.GetArchiveDir(), src) + ".tar"
+
+	dir, err := os.Open(archiveName)
 
 	if err != nil {
-		return ERRNOOPEN
+		return "", ERRNOOPEN
 	}
 
 	tw := tar.NewWriter(dir)
 	defer tw.Close()
 
-	return filepath.Walk(src, func(file string, fi os.FileInfo, err error) error {
+	return archiveName, filepath.Walk(src, func(file string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
