@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -44,13 +45,25 @@ func main() {
 	archiveDir := flag.String("archiveDir", "archives", "Directory in which tarred projects will be stored")
 	timeout := flag.Int("timeout", 30, "Timeout for build and test tasks")
 	secret := flag.String("secret", "", "Global secret for webhooks")
+	noDocker := flag.Bool("nodocker", false, "Whether or not to use docker")
 	flag.Parse()
 
-	utils.Config.SetProjectDir(*projectDir)
+	absProj, err := filepath.Abs(*projectDir)
+	if err != nil {
+		log.Fatalln("Project directory path could not be set")
+	}
+
+	absArch, err := filepath.Abs(*archiveDir)
+	if err != nil {
+		log.Fatalln("Archive directory path could not be set")
+	}
+
+	utils.Config.SetProjectDir(absProj)
 	utils.Config.Port = *port
-	utils.Config.SetArchiveDir(*archiveDir)
+	utils.Config.SetArchiveDir(absArch)
 	utils.Config.Timeout = *timeout
 	utils.Config.Secret = []byte(*secret)
+	utils.Config.NoDocker = *noDocker
 
 	utils.Config.WorkingDir, _ = os.Getwd()
 
@@ -74,7 +87,9 @@ func (g *gobble) init() {
 
 	g.r = r
 
-	deploy.InitDocker()
+	if !utils.Config.NoDocker {
+		deploy.InitDocker()
+	}
 }
 
 func (g *gobble) start() {

@@ -3,6 +3,7 @@ package utils
 import (
 	"archive/tar"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -27,14 +28,18 @@ func HTTPErrorCheck(err error, w http.ResponseWriter, errorCode int) bool {
 	return false
 }
 
-func Tar(src string) (string, error) {
+func Tar(projName string) (string, error) {
+	src := path.Join(Config.GetProjectDir(), projName)
+
+	log.Println("Creating archive from " + src)
+
 	if !DirectoryExists(src) {
 		return "", ERRFILENOTFOUND
 	}
 
-	archiveName := path.Join(Config.GetArchiveDir(), src) + ".tar"
+	archiveName := path.Join(Config.GetArchiveDir(), projName) + ".tar"
 
-	dir, err := os.Open(archiveName)
+	dir, err := os.Create(archiveName)
 
 	if err != nil {
 		return "", ERRNOOPEN

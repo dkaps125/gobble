@@ -6,14 +6,25 @@ import (
 	"log"
 )
 
+var (
+	platforms = map[string]string{
+		"golang": "/go/src",
+		"node":   "/deploy",
+	}
+)
+
 type Deploy struct {
-	DeployType string `json:"type"`
-	Build      string `json:"build"`
-	Test       string `json:"test"`
-	Run        string `json:"run"`
-	runCancel  context.CancelFunc
-	Name       string
-	killed     chan (bool)
+	Name string
+
+	DeployType string            `json:"type"`
+	Build      string            `json:"build"`
+	Test       string            `json:"test"`
+	Run        string            `json:"run"`
+	Platform   string            `json:"platform"`
+	Ports      map[string]string `json:"ports"`
+
+	runCancel context.CancelFunc
+	killed    chan (bool)
 }
 
 var deployments = make(map[string]*Deploy)
@@ -51,8 +62,21 @@ func (d *Deploy) Deploy(name string) error {
 			return err
 		}
 	} else if d.DeployType == "docker" {
+		if utils.Config.NoDocker {
+			return utils.ERRNOCONFIG
+		}
+
+		if _, ok := platforms[d.Platform]; !ok {
+			return utils.ERRINVALIDPLATFORM
+		}
+
+		log.Printf("Deploying %s in a new docker container\n", d.Name)
 		var container Container
-		container.DeployContainer(*d)
+		err := container.DeployContainer(*d)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

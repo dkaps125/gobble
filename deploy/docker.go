@@ -2,9 +2,9 @@ package deploy
 
 import (
 	"context"
-	"io"
 	"log"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -29,6 +29,7 @@ type Container struct {
 	state  int
 	deploy Deploy
 	id     string
+	dir    string
 }
 
 var dockerClient *client.Client
@@ -43,38 +44,43 @@ func InitDocker() {
 		panic(err)
 	}
 
-	reader, err := cli.ImagePull(ctx, "docker.io/library/ubuntu", types.ImagePullOptions{})
-	if err != nil {
-		panic(err)
-	}
-	io.Copy(os.Stdout, reader)
-
 	dockerClient = cli
 	dockerContext = ctx
 
-	log.Println("Docker interface initalized, ubuntu image imported")
+	log.Println("Docker interface initalized")
 }
 
 func (container *Container) DeployContainer(dep Deploy) error {
 	container.state = NEW
 	container.deploy = dep
 
-	err := container.initContainer()
+	log.Println("Pulling docker image")
+	_, err := dockerClient.ImagePull(dockerContext, "docker.io/library/"+dep.Platform, types.ImagePullOptions{})
+	if err != nil {
+		return err
+	}
+	//io.Copy(os.Stdout, reader)
+
+	err = container.initContainer()
+	log.Println("Container initialized")
 	if err != nil {
 		return err
 	}
 
 	err = container.deployArchive()
+	log.Println("Deployed project archive to container")
 	if err != nil {
 		return err
 	}
 
 	err = container.startContainer()
+	log.Println("Started container")
 	if err != nil {
 		return err
 	}
 
 	err = container.deployContainer()
+	log.Println("Launched project on container")
 	if err != nil {
 		return err
 	}
@@ -87,14 +93,18 @@ func (c *Container) initContainer() error {
 		return utils.ERRINVALIDSTATE
 	}
 
+	exposed, bound := getPorts(c.deploy)
+
+	dir := path.Join(platforms[c.deploy.Platform], c.deploy.Name)
+
 	resp, err := dockerClient.ContainerCreate(dockerContext, &container.Config{
-		Image:        "ubuntu",
-		WorkingDir:   "/deploy",
+		Image:        c.deploy.Platform,
+		WorkingDir:   dir,
 		Entrypoint:   []string{"/bin/bash"},
 		Tty:          true,
-		ExposedPorts: nat.PortSet{}, //TODO: obtain this
+		ExposedPorts: exposed,
 	}, &container.HostConfig{
-		PortBindings: nat.PortMap{}, //TODO: obtain this
+		PortBindings: bound,
 	}, nil, "")
 
 	if err != nil {
@@ -103,6 +113,7 @@ func (c *Container) initContainer() error {
 
 	c.id = resp.ID
 	c.state = CREATED
+	c.dir = dir
 	return nil
 }
 
@@ -121,7 +132,7 @@ func (c *Container) deployArchive() error {
 		return err
 	}
 
-	if err := dockerClient.CopyToContainer(dockerContext, c.id, "/deploy", archive, types.CopyToContainerOptions{}); err != nil {
+	if err := dockerClient.CopyToContainer(dockerContext, c.id, c.dir, archive, types.CopyToContainerOptions{}); err != nil {
 		return err
 	}
 
@@ -182,8 +193,9 @@ func (c *Container) runCommand(command string, block bool) (chan (int), error) {
 	}
 
 	execId, err := dockerClient.ContainerExecCreate(dockerContext, c.id, types.ExecConfig{
-		Cmd: strings.Split(command, " "),
-		Tty: true,
+		Cmd:        strings.Split(command, " "),
+		WorkingDir: c.dir,
+		Tty:        true,
 	})
 
 	if err != nil {
@@ -217,4 +229,23 @@ func (c *Container) runCommand(command string, block bool) (chan (int), error) {
 	}
 
 	return done, nil
+}
+
+func getPorts(dep Deploy) (nat.PortSet, nat.PortMap) {
+
+	exposed := make(nat.PortSet)
+	bound := make(nat.PortMap)
+
+	for k, v := range dep.Ports {
+		exposed[nat.Port(k)] = struct{}{}
+
+		bound[nat.Port(k)] = []nat.PortBinding{
+			{
+				HostIP:   "0.0.0.0",
+				HostPort: v,
+			},
+		}
+	}
+
+	return exposed, bound
 }

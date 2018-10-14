@@ -13,6 +13,7 @@ type Configuration struct {
 	WorkingDir string
 	Timeout    int
 	Secret     []byte
+	NoDocker   bool
 }
 
 var Config Configuration

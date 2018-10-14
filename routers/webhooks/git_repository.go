@@ -51,10 +51,14 @@ func (r *Repo) UpdateOrClone() error {
 			}
 		}
 
-		//TODO: error checking
-		worktree.Pull(&git.PullOptions{
+		log.Printf("Pulling new version of %s\n", r.Name)
+		err = worktree.Pull(&git.PullOptions{
 			SingleBranch: true,
 		})
+
+		if err != nil {
+			return err
+		}
 	} else {
 		log.Printf("Cloning from %s\n", r.Clone_url)
 		//TODO: use config to determine which url to clone from
@@ -96,7 +100,7 @@ func (r *Repo) ImportConfig() error {
 }
 
 func (r *Repo) Deploy() error {
-	err := os.Chdir(path.Join(utils.Config.WorkingDir, r.directory))
+	err := os.Chdir(r.directory)
 	defer os.Chdir(utils.Config.WorkingDir)
 
 	if err != nil {
@@ -104,7 +108,11 @@ func (r *Repo) Deploy() error {
 	}
 
 	//TODO: do i need to error check here?
-	r.config.Deployment.Deploy(r.Name)
+	err = r.config.Deployment.Deploy(r.Name)
+
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

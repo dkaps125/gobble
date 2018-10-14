@@ -1,4 +1,7 @@
 projects/
 projects/*
 
+archives/
+archives/*
+
 *.test

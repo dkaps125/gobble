@@ -45,14 +45,8 @@ func postWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var webhook GitWebhook
-	macStr := strings.Split(r.Header.Get("X-Hub-Signature"), "=")[1]
 
-	mac, err := hex.DecodeString(macStr)
-	if utils.HTTPErrorCheck(err, w, 500) {
-		return
-	}
-
-	auth, err := webhook.checkSecret(body, mac)
+	auth, err := webhook.checkSecret(r.Header, body)
 
 	if !auth || err != nil {
 		log.Println(err)
@@ -86,8 +80,17 @@ func postWebhook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 }
 
-func (w *GitWebhook) checkSecret(requestBody, messageMac []byte) (bool, error) {
-	if len(messageMac) != 0 {
+func (w *GitWebhook) checkSecret(header http.Header, requestBody []byte) (bool, error) {
+	macStr := header.Get("X-Hub-Signature")
+
+	if macStr != "" {
+		macStr = strings.Split(macStr, "=")[1]
+
+		messageMac, err := hex.DecodeString(macStr)
+		if err != nil {
+			return false, err
+		}
+
 		secret := w.secret
 
 		if len(secret) == 0 {

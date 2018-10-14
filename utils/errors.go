@@ -74,11 +74,13 @@ var (
 // ===============================================================
 
 const (
-	errInvalidState = iota
+	errInvalidState    = iota
+	errInvalidPlatform = iota
 )
 
 var dockerMessages = map[int]string{
-	errInvalidState: "Container was in an invalid state for called operation",
+	errInvalidState:    "Container was in an invalid state for called operation",
+	errInvalidPlatform: "Invalid container platform was specified",
 }
 
 type dockerError struct {
@@ -92,5 +94,9 @@ func (e dockerError) Error() string {
 var (
 	ERRINVALIDSTATE = dockerError{
 		ErrorType: errInvalidState,
+	}
+
+	ERRINVALIDPLATFORM = dockerError{
+		ErrorType: errInvalidPlatform,
 	}
 )
