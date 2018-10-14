@@ -88,6 +88,22 @@ func (container *Container) DeployContainer(dep Deploy) error {
 	return nil
 }
 
+func (c *Container) DestroyContainer() error {
+	if c.state != STARTED && c.state != DEPLOYED {
+		return utils.ERRINVALIDSTATE
+	}
+
+	err := dockerClient.ContainerStop(dockerContext, c.id, nil)
+
+	if err != nil {
+		return err
+	}
+
+	err = dockerClient.ContainerRemove(dockerContext, c.id, types.ContainerRemoveOptions{})
+
+	return err
+}
+
 func (c *Container) initContainer() error {
 	if c.state != NEW {
 		return utils.ERRINVALIDSTATE
@@ -105,6 +121,9 @@ func (c *Container) initContainer() error {
 		ExposedPorts: exposed,
 	}, &container.HostConfig{
 		PortBindings: bound,
+		RestartPolicy: container.RestartPolicy{
+			Name: "unless-stopped",
+		},
 	}, nil, "")
 
 	if err != nil {

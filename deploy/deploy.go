@@ -28,6 +28,7 @@ type Deploy struct {
 }
 
 var deployments = make(map[string]*Deploy)
+var containers = make(map[string]*Container)
 
 func (d *Deploy) Deploy(name string) error {
 	d.Name = name
@@ -44,6 +45,16 @@ func (d *Deploy) Deploy(name string) error {
 
 		delete(deployments, name)
 		log.Printf("Stopped prior deployment of %s\n", name)
+	} else if cont, ok := containers[name]; ok {
+		log.Printf("Found previous container of %s. Stopping...\n", name)
+		err := cont.DestroyContainer()
+
+		if err != nil {
+			return err
+		}
+
+		delete(containers, name)
+		log.Printf("Destroyed prior container for %s\n", name)
 	}
 
 	if d.DeployType == "local" {
@@ -77,6 +88,8 @@ func (d *Deploy) Deploy(name string) error {
 		if err != nil {
 			return err
 		}
+
+		containers[d.Name] = &container
 	}
 
 	return nil
@@ -122,5 +135,10 @@ func Shutdown() {
 		log.Printf("Shutting down %s\n", v.Name)
 		v.runCancel()
 		<-v.killed
+	}
+
+	for k, v := range containers {
+		log.Printf("Shutting down %s\n", k)
+		v.DestroyContainer()
 	}
 }
