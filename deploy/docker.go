@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -37,6 +38,9 @@ var dockerContext context.Context
 
 func InitDocker() {
 	log.Println("Initializing Docker interface...")
+
+	os.Setenv("DOCKER_API_VERSION", "1.38")
+
 	ctx := context.Background()
 	cli, err := client.NewEnvClient()
 
@@ -50,16 +54,16 @@ func InitDocker() {
 	log.Println("Docker interface initalized")
 }
 
-func (container *Container) DeployContainer(dep Deploy) error {
+func (container *Container) Deploy(dep Deploy) error {
 	container.state = NEW
 	container.deploy = dep
 
 	log.Println("Pulling docker image")
-	_, err := dockerClient.ImagePull(dockerContext, "docker.io/library/"+dep.Platform, types.ImagePullOptions{})
+	reader, err := dockerClient.ImagePull(dockerContext, "docker.io/library/"+dep.Platform, types.ImagePullOptions{})
 	if err != nil {
 		return err
 	}
-	//io.Copy(os.Stdout, reader)
+	io.Copy(os.Stdout, reader)
 
 	err = container.initContainer()
 	log.Println("Container initialized")
@@ -88,7 +92,7 @@ func (container *Container) DeployContainer(dep Deploy) error {
 	return nil
 }
 
-func (c *Container) DestroyContainer() error {
+func (c *Container) Halt() error {
 	if c.state != STARTED && c.state != DEPLOYED {
 		return utils.ERRINVALIDSTATE
 	}

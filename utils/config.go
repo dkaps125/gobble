@@ -11,6 +11,7 @@ type Configuration struct {
 	projectDir string
 	archiveDir string
 	WorkingDir string
+	pidDir     string
 	Timeout    int
 	Secret     []byte
 	NoDocker   bool
@@ -34,6 +35,14 @@ func (c *Configuration) GetArchiveDir() string {
 	return c.archiveDir
 }
 
+func (c *Configuration) SetPidDir(directory string) {
+	c.setDirectory(&c.pidDir, directory)
+}
+
+func (c *Configuration) GetPidDir() string {
+	return c.pidDir
+}
+
 func (c *Configuration) setDirectory(prop *string, directory string) {
 	var err error
 
@@ -44,7 +53,7 @@ func (c *Configuration) setDirectory(prop *string, directory string) {
 	}
 
 	if err != nil {
-		panic("Could not set/create project directory!\n\n" + err.Error())
+		panic("Could not set/create directory!\n\n" + err.Error())
 	}
 
 	*prop = directory

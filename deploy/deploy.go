@@ -1,9 +1,10 @@
 package deploy
 
 import (
-	"context"
 	"gobble/utils"
 	"log"
+	"os"
+	"path"
 )
 
 var (
@@ -12,6 +13,11 @@ var (
 		"node":   "/deploy",
 	}
 )
+
+type DeploymentType interface {
+	Deploy(dep Deploy) error
+	Halt() error
+}
 
 type Deploy struct {
 	Name string
@@ -23,55 +29,31 @@ type Deploy struct {
 	Platform   string            `json:"platform"`
 	Ports      map[string]string `json:"ports"`
 
-	runCancel context.CancelFunc
-	killed    chan (bool)
+	pidFile string
 }
 
-var deployments = make(map[string]*Deploy)
-var containers = make(map[string]*Container)
+var deployments = make(map[string]DeploymentType)
 
 func (d *Deploy) Deploy(name string) error {
 	d.Name = name
 
 	log.Printf("Checking for prior deployment of '%s'\n", name)
-	if dep, ok := deployments[name]; ok {
-		log.Printf("Found previous deployment of %s. Stopping...\n", name)
-		dep.runCancel()
-		died := <-dep.killed
-
-		if !died {
-			return utils.ERRKILLPROC
-		}
-
-		delete(deployments, name)
-		log.Printf("Stopped prior deployment of %s\n", name)
-	} else if cont, ok := containers[name]; ok {
-		log.Printf("Found previous container of %s. Stopping...\n", name)
-		err := cont.DestroyContainer()
-
-		if err != nil {
-			return err
-		}
-
-		delete(containers, name)
-		log.Printf("Destroyed prior container for %s\n", name)
+	err := d.removePrev()
+	if err != nil {
+		return err
 	}
 
 	if d.DeployType == "local" {
-		err := d.build()
+		log.Printf("Deploying %s locally\n", d.Name)
+
+		var local Local
+		err := local.Deploy(*d)
+
 		if err != nil {
 			return err
 		}
 
-		err = d.test()
-		if err != nil {
-			return err
-		}
-
-		err = d.run()
-		if err != nil {
-			return err
-		}
+		deployments[d.Name] = &local
 	} else if d.DeployType == "docker" {
 		if utils.Config.NoDocker {
 			return utils.ERRNOCONFIG
@@ -83,62 +65,68 @@ func (d *Deploy) Deploy(name string) error {
 
 		log.Printf("Deploying %s in a new docker container\n", d.Name)
 		var container Container
-		err := container.DeployContainer(*d)
+		err := container.Deploy(*d)
 
 		if err != nil {
 			return err
 		}
 
-		containers[d.Name] = &container
+		deployments[d.Name] = &container
 	}
 
-	return nil
+	return d.createPID()
 }
 
-func (d *Deploy) build() error {
-	if d.Build != "" {
-		_, _, err := ExecuteCommand(d.Build, utils.Config.Timeout)
-		return err
-	}
+func (d *Deploy) removePrev() error {
+	name := d.Name
 
-	return nil
-}
+	if dep, ok := deployments[name]; ok {
+		log.Printf("Found previous deployment of %s. Stopping...\n", name)
 
-func (d *Deploy) test() error {
-	if d.Test != "" {
-		_, _, err := ExecuteCommand(d.Test, utils.Config.Timeout)
-		return err
-	}
-
-	return nil
-}
-
-func (d *Deploy) run() error {
-	if d.Run != "" {
-		cancel, killed, err := ExecuteCommand(d.Run, 0)
-		d.runCancel = cancel
-		d.killed = killed
-
-		if err == nil {
-			log.Printf("Launched new version of %s\n", d.Name)
-			deployments[d.Name] = d
+		err := dep.Halt()
+		if err != nil {
+			return err
 		}
 
-		return err
+		delete(deployments, name)
+		log.Printf("Stopped prior deployment of %s\n", name)
+
+		return d.removePID()
 	}
 
 	return nil
+}
+
+func (d *Deploy) removePID() error {
+	err := os.Remove(d.pidFile)
+
+	if err == nil {
+		d.pidFile = ""
+	}
+
+	return err
+}
+
+func (d *Deploy) createPID() error {
+	pidFile := path.Join(utils.Config.GetPidDir(), d.Name+".pid")
+	_, err := os.Create(pidFile)
+
+	if err == nil {
+		d.pidFile = pidFile
+		log.Printf("Created new pidFile %s\n", d.pidFile)
+	}
+
+	return err
 }
 
 func Shutdown() {
-	for _, v := range deployments {
-		log.Printf("Shutting down %s\n", v.Name)
-		v.runCancel()
-		<-v.killed
-	}
-
-	for k, v := range containers {
+	for k, v := range deployments {
 		log.Printf("Shutting down %s\n", k)
-		v.DestroyContainer()
+
+		err := v.Halt()
+		if err != nil {
+			log.Printf("Deployment %s may not have shut down correctly\n", k)
+		}
+
 	}
 }

@@ -67,13 +67,19 @@ func main() {
 
 	utils.Config.WorkingDir, _ = os.Getwd()
 
+	absPid, err := filepath.Abs("pid")
+	if err != nil {
+		log.Fatalln("PID directory path could not be set")
+	}
+	utils.Config.SetPidDir(absPid)
+
 	handleInterrupt()
 
-	G.init()
+	G.initRouter()
 	G.start()
 }
 
-func (g *gobble) init() {
+func (g *gobble) initRouter() {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)

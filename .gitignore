@@ -4,4 +4,7 @@ projects/*
 archives/
 archives/*
 
+pid/
+pid/*
+
 *.test
